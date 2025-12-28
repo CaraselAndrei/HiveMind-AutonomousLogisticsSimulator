@@ -3,7 +3,7 @@
 #include <vector>
 #include <random>
 #include <queue>
-#include "../settings.h"
+#include "settings.h"
 
 using namespace std;
 
@@ -13,14 +13,13 @@ using namespace std;
 
 class IMapGenerator {
 public:
-    virtual MapGrid generateMap(int rows, int cols) = 0;
+    virtual MapGrid generateMap(int rows, int cols, int station, int clients) = 0;
     virtual ~IMapGenerator() = default;
 };
 
 class ProceduralMapGenerator : public IMapGenerator {
 private:
     mt19937 rng;
-    SimulationSettings settings;
 
 public:
     ProceduralMapGenerator() {
@@ -28,12 +27,12 @@ public:
         rng.seed(rd());
     }
 
-    MapGrid generateMap(int rows, int cols) override {
+    MapGrid generateMap(int rows, int cols, int stations, int clients) override {
         MapGrid map;
         bool valid = false;
 
         while (!valid) {
-            map = MapGrid(settings.mapRows, vector<char>(settings.mapCols, '.'));
+            map = MapGrid(rows, vector<char>(cols, '.'));
 
             uniform_int_distribution<int> distRow(0, rows - 1);
             uniform_int_distribution<int> distCol(0, cols - 1);
@@ -42,14 +41,14 @@ public:
             int hubC = distCol(rng);
             map[hubR][hubC] = 'B';
 
-            int numWalls = (rows * cols) * 0.4; // 20% ziduri
+            int numWalls = (rows * cols) * 0.4; // 40% ziduri
             placeItem(map, numWalls, '#', distRow, distCol);
 
-            placeItem(map, settings.maxStations, 'S', distRow, distCol);
-            placeItem(map, settings.clientsCount, 'D', distRow, distCol);
+            placeItem(map, stations, 'S', distRow, distCol);
+            placeItem(map, clients, 'D', distRow, distCol);
 
 
-            if (isMapValid(map, hubR, hubC, settings.clientsCount + settings.maxStations)) {
+            if (isMapValid(map, hubR, hubC, clients + stations)) {
                 valid = true;
                 cout<<"Harta generata valid!"<<endl;
             } else {
