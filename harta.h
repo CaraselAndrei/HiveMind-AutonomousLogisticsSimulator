@@ -13,7 +13,7 @@ using namespace std;
 
 class IMapGenerator {
 public:
-    virtual MapGrid generateMap(int rows, int cols, int station, int clients) = 0;
+    virtual MapGrid generateMap(int rows, int cols, int station) = 0;
     virtual ~IMapGenerator() = default;
 };
 
@@ -27,7 +27,7 @@ public:
         rng.seed(rd());
     }
 
-    MapGrid generateMap(int rows, int cols, int stations, int clients) override {
+    MapGrid generateMap(int rows, int cols, int stations) override {
         MapGrid map;
         bool valid = false;
 
@@ -45,10 +45,10 @@ public:
             placeItem(map, numWalls, '#', distRow, distCol);
 
             placeItem(map, stations, 'S', distRow, distCol);
-            placeItem(map, clients, 'D', distRow, distCol);
+            placeItem(map, 1, 'D', distRow, distCol);
 
 
-            if (isMapValid(map, hubR, hubC, clients + stations)) {
+            if (isMapValid(map, hubR, hubC,  1+stations)) {
                 valid = true;
                 cout<<"Harta generata valid!"<<endl;
             } else {
@@ -117,3 +117,29 @@ void printMap(const MapGrid& map) {
         cout<<endl;
     }
 }
+
+class FileMapLoader :public IMapGenerator{
+private:
+    string numeFisier;
+public:
+    FileMapLoader(const string& caleFisier) : numeFisier("harta_test") {}
+    MapGrid generateMap(int rows, int cols, int stations){
+        MapGrid harta(rows, vector<char>(cols, '.'));
+
+        ifstream file("harta_test");
+        if (!file.is_open()) {
+            cerr<<"[EROARE] Nu s-a putut deschide fisierul:"<<numeFisier<<endl;
+            cerr<<"Se returneaza o harta goala (default)."<<endl;
+            return harta;
+        }
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                file>>harta[i][j];
+            }
+        }
+
+        file.close();
+        cout<<"Harta incarcata cu succes din "<<numeFisier<<endl;
+        return harta;
+    }
+};
