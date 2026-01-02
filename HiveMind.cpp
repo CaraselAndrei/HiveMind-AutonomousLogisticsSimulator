@@ -4,8 +4,6 @@
 
 using namespace std;
 
-
-
 int main()
 {
     ProceduralMapGenerator generator;
@@ -17,16 +15,32 @@ int main()
     cout<<"0.Iesi.\n";
     int x;
     cin>>x;
+
+    MapGrid myMap;
     if(x==1) {
         IMapGenerator* generatorHarta = new FileMapLoader("harta_test");
-        MapGrid myMap = generatorHarta->generateMap(settings.mapRows, settings.mapCols, settings.maxStations);
+        myMap = generatorHarta->generateMap(settings.mapRows, settings.mapCols, settings.maxStations);
         cout << "Harta citita:" << endl;
         printMap(myMap);
     }
     else if(x==2) {
-        MapGrid myMap = generator.generateMap(settings.mapRows, settings.mapCols, settings.maxStations);
+        myMap = generator.generateMap(settings.mapRows, settings.mapCols, settings.maxStations);
         printMap(myMap);
     }
+
+    int thick=0;//momentul initial
+    int deliveries=0;
+    ProceduralMapGenerator tools;
+
+    //Simulare thick
+    while (thick<=100/*settings.maxTicks*/) {
+        thick++;
+        if (thick%settings.spawnFrequency==0 && deliveries<settings.clientsCount) {
+            tools.adaugaElementeRandom(myMap,1,'D');
+        }
+    }
+    cout<<"\n\n";
+    printMap(myMap);
 
     return 0;
 }

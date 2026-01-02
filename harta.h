@@ -5,10 +5,8 @@
 #include <queue>
 #include "settings.h"
 
-using namespace std;
 
 using MapGrid=vector<vector<char>>;
-
 using namespace std;
 
 class IMapGenerator {
@@ -58,7 +56,23 @@ public:
         return map;
     }
 
-private:
+    void adaugaElementeRandom(MapGrid& map, int count, char item) {
+        if (map.empty()) return;
+
+        int rows = map.size();
+        int cols = map[0].size();
+
+        // Configuram distributiile pe baza dimensiunii actuale a hartii
+        uniform_int_distribution<int> distRow(0, rows - 1);
+        uniform_int_distribution<int> distCol(0, cols - 1);
+
+        // Apelam functia interna privata
+        placeItem(map, count, item, distRow, distCol);
+
+        cout << "Am adaugat " << count << " elemente de tip '" << item << "'." << endl;
+    }
+
+    private:
     void placeItem(MapGrid& map, int count, char item, uniform_int_distribution<int>& dR, uniform_int_distribution<int>& dC) {
         int placed = 0;
         while (placed < count) {
