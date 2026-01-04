@@ -22,7 +22,7 @@ class ProceduralMapGenerator : public IMapGenerator {
 private:
     mt19937 rng;
     vector<Point> destinations;
-    vector<Point> stations;
+    vector<Point> station_list;
     Point base;
 
 public:
@@ -36,7 +36,7 @@ public:
     }
 
     vector<Point> getStations() override {
-        return stations;
+        return station_list;
     }
 
     Point getBase() override {
@@ -47,9 +47,9 @@ public:
         MapGrid map;
         bool valid = false;
 
-        destinations.clear();
-
         while (!valid) {
+            destinations.clear();
+            station_list.clear();
             map = MapGrid(rows, vector<char>(cols, '.'));
 
             uniform_int_distribution<int> distRow(0, rows - 1);
@@ -97,7 +97,7 @@ public:
                     Point s;
                     s.x=r;
                     s.y=c;
-                    stations.push_back(s);
+                    station_list.push_back(s);
                 }
             }
         }
