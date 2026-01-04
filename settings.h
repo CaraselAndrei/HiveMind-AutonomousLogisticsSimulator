@@ -6,6 +6,10 @@
 
 using namespace std;
 
+struct Point {
+    int x, y;
+};
+
 struct SimulationSettings {
     int mapRows, mapCols;
     int maxTicks;

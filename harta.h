@@ -18,6 +18,9 @@ public:
 class ProceduralMapGenerator : public IMapGenerator {
 private:
     mt19937 rng;
+    vector<Point> destinations;
+    vector<Point> stations;
+    Point base;
 
 public:
     ProceduralMapGenerator() {
@@ -38,6 +41,8 @@ public:
             int hubR = distRow(rng);
             int hubC = distCol(rng);
             map[hubR][hubC] = 'B';
+            base.x=hubR;
+            base.y=hubC;
 
             int numWalls = (rows * cols) * 0.4; // 40% ziduri
             placeItem(map, numWalls, '#', distRow, distCol);
@@ -56,22 +61,6 @@ public:
         return map;
     }
 
-    void adaugaElementeRandom(MapGrid& map, int count, char item) {
-        if (map.empty()) return;
-
-        int rows = map.size();
-        int cols = map[0].size();
-
-        // Configuram distributiile pe baza dimensiunii actuale a hartii
-        uniform_int_distribution<int> distRow(0, rows - 1);
-        uniform_int_distribution<int> distCol(0, cols - 1);
-
-        // Apelam functia interna privata
-        placeItem(map, count, item, distRow, distCol);
-
-        cout << "Am adaugat " << count << " elemente de tip '" << item << "'." << endl;
-    }
-
     private:
     void placeItem(MapGrid& map, int count, char item, uniform_int_distribution<int>& dR, uniform_int_distribution<int>& dC) {
         int placed = 0;
@@ -81,6 +70,18 @@ public:
             if (map[r][c] == '.') {
                 map[r][c] = item;
                 placed++;
+                if (item=='D') {
+                    Point d;
+                    d.x=r;
+                    d.y=c;
+                    destinations.push_back(d);
+                }
+                else if (item=='S') {
+                    Point s;
+                    s.x=r;
+                    s.y=c;
+                    stations.push_back(s);
+                }
             }
         }
     }

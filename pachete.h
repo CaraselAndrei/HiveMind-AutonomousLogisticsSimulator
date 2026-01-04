@@ -3,12 +3,9 @@
 #include <random>
 #include <vector>
 #include "harta.h"
+#include "settings.h"
 
 using namespace std;
-
-struct Point {
-    int x, y;
-};
 
 class Pachet {
     int value,deadline;
