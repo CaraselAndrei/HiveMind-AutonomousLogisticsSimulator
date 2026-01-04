@@ -19,12 +19,12 @@ int main()
     MapGrid myMap;
     if(x==1) {
         IMapGenerator* generatorHarta = new FileMapLoader("harta_test");
-        myMap = generatorHarta->generateMap(settings.mapRows, settings.mapCols, settings.maxStations);
+        myMap = generatorHarta->generateMap(settings.mapRows, settings.mapCols, settings.maxStations, settings.clientsCount);
         cout << "Harta citita:" << endl;
         printMap(myMap);
     }
     else if(x==2) {
-        myMap = generator.generateMap(settings.mapRows, settings.mapCols, settings.maxStations);
+        myMap = generator.generateMap(settings.mapRows, settings.mapCols, settings.maxStations,settings.clientsCount);
         printMap(myMap);
     }
 
@@ -36,11 +36,8 @@ int main()
     while (thick<=100/*settings.maxTicks*/) {
         thick++;
         if (thick%settings.spawnFrequency==0 && deliveries<settings.clientsCount) {
-            tools.adaugaElementeRandom(myMap,1,'D');
+            //Spawn pachet in baza
         }
     }
-    cout<<"\n\n";
-    printMap(myMap);
-
     return 0;
 }

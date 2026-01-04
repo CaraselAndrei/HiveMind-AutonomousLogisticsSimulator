@@ -29,6 +29,7 @@ protected:
     Point pozitie;
     AgentState stare;
 
+
 public:
     Agent(string n, char s, int v, int bMax, int cons, int cost, int cap, Point startPos)
         : nume(n), simbol(s), viteza(v), baterieMax(bMax), baterie(bMax),

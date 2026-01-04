@@ -7,4 +7,5 @@ add_executable(HiveMind
         HiveMind.cpp
         harta.h
         agenti.h
-        settings.h)
+        settings.h
+        pachete.h)

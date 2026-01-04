@@ -11,7 +11,7 @@ using namespace std;
 
 class IMapGenerator {
 public:
-    virtual MapGrid generateMap(int rows, int cols, int station) = 0;
+    virtual MapGrid generateMap(int rows, int cols, int stations, int clients)=0;
     virtual ~IMapGenerator() = default;
 };
 
@@ -25,7 +25,7 @@ public:
         rng.seed(rd());
     }
 
-    MapGrid generateMap(int rows, int cols, int stations) override {
+    MapGrid generateMap(int rows, int cols, int stations, int clients) override {
         MapGrid map;
         bool valid = false;
 
@@ -43,10 +43,10 @@ public:
             placeItem(map, numWalls, '#', distRow, distCol);
 
             placeItem(map, stations, 'S', distRow, distCol);
-            placeItem(map, 1, 'D', distRow, distCol);
+            placeItem(map, clients, 'D', distRow, distCol);
 
 
-            if (isMapValid(map, hubR, hubC,  1+stations)) {
+            if (isMapValid(map, hubR, hubC,  stations+clients)) {
                 valid = true;
                 cout<<"Harta generata valid!"<<endl;
             } else {
@@ -137,7 +137,7 @@ private:
     string numeFisier;
 public:
     FileMapLoader(const string& caleFisier) : numeFisier("harta_test") {}
-    MapGrid generateMap(int rows, int cols, int stations){
+    MapGrid generateMap(int rows, int cols, int stations, int clients){
         MapGrid harta(rows, vector<char>(cols, '.'));
 
         ifstream file("harta_test");
