@@ -12,6 +12,9 @@ using namespace std;
 class IMapGenerator {
 public:
     virtual MapGrid generateMap(int rows, int cols, int stations, int clients)=0;
+    virtual vector<Point> getDestinations() = 0;
+    virtual vector<Point> getStations() = 0;
+    virtual Point getBase()=0;
     virtual ~IMapGenerator() = default;
 };
 
@@ -28,9 +31,23 @@ public:
         rng.seed(rd());
     }
 
+    vector<Point> getDestinations() override {
+        return destinations;
+    }
+
+    vector<Point> getStations() override {
+        return stations;
+    }
+
+    Point getBase() override {
+        return base;
+    }
+
     MapGrid generateMap(int rows, int cols, int stations, int clients) override {
         MapGrid map;
         bool valid = false;
+
+        destinations.clear();
 
         while (!valid) {
             map = MapGrid(rows, vector<char>(cols, '.'));
@@ -136,7 +153,23 @@ void printMap(const MapGrid& map) {
 class FileMapLoader :public IMapGenerator{
 private:
     string numeFisier;
+    vector<Point> destinations;
+    vector<Point> station;
+    Point base;
 public:
+
+    vector<Point> getDestinations() override {
+        return destinations;
+    }
+
+    vector<Point> getStations() override {
+        return station;
+    }
+
+    Point getBase() override {
+        return base;
+    }
+
     FileMapLoader(const string& caleFisier) : numeFisier("harta_test") {}
     MapGrid generateMap(int rows, int cols, int stations, int clients){
         MapGrid harta(rows, vector<char>(cols, '.'));
@@ -150,6 +183,22 @@ public:
         for (int i = 0; i < rows; ++i) {
             for (int j = 0; j < cols; ++j) {
                 file>>harta[i][j];
+                if (harta[i][j] == 'D') {
+                    Point p;
+                    p.x=i;
+                    p.y=j;
+                    destinations.push_back(p);
+                }
+                else if (harta[i][j] == 'S') {
+                    Point p;
+                    p.x=i;
+                    p.y=j;
+                    station.push_back(p);
+                }
+                else if (harta[i][j] == 'B') {
+                    base.x=i;
+                    base.y=j;
+                }
             }
         }
 
