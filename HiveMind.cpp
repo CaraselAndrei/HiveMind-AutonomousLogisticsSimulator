@@ -14,45 +14,51 @@ int main()
 {
     ProceduralMapGenerator generator;
     SimulationSettings settings = ConfigLoader::load("simulation_setup.txt");
-    vector<Point> destinatiiFinale;
+    vector<Point> destinatii;
+    vector<Point> statii;
     Point base;
 
     cout<<"Selecteaza optiunea:\n";
     cout<<"1.Citeste din fisier.\n";
     cout<<"2.Genereaza harta.\n";
     cout<<"0.Iesi.\n";
-    int x;
-    cin>>x;
+    int x=2;
+    //cin>>x;
 
     MapGrid myMap;
     if(x==1) {
-        IMapGenerator* generatorHarta = new FileMapLoader("harta_test");
+        IMapGenerator* generatorHarta = new FileMapLoader("harta2");
         myMap = generatorHarta->generateMap(settings.mapRows, settings.mapCols, settings.maxStations, settings.clientsCount);
-        destinatiiFinale = generatorHarta->getDestinations();
+        destinatii = generatorHarta->getDestinations();
+        statii=generatorHarta->getStations();
         cout << "Harta citita:" << endl;
         printMap(myMap);
-        base= generator.getBase();
+        base = generatorHarta->getBase();
+        destinatii=generatorHarta->getDestinations();
+        statii=generatorHarta->getStations();
     }
     else if(x==2) {
         myMap = generator.generateMap(settings.mapRows, settings.mapCols, settings.maxStations,settings.clientsCount);
-        destinatiiFinale = generator.getDestinations();
+        destinatii = generator.getDestinations();
+        base = generator.getBase();
         printMap(myMap);
     }
 
     int deliveries=0;
     ProceduralMapGenerator tools;
-    cout << "\nLista destinatii (Total: " << destinatiiFinale.size() << "):" << endl;
-    for(size_t i = 0; i < destinatiiFinale.size(); i++) {
-        cout << "Destinatia " << i + 1 << ": [" << destinatiiFinale[i].x << ", " << destinatiiFinale[i].y << "]" << endl;
+    cout << "\nLista destinatii (Total: " << destinatii.size() << "):" << endl;
+    for(size_t i = 0; i < destinatii.size(); i++) {
+        cout << "Destinatia " << i + 1 << ": [" << destinatii[i].x << ", " << destinatii[i].y << "]" << endl;
     }
 
     //Simulare thick
-vector<Agent*> flota;
+    vector<Agent*> flota;
     for(int i=0; i<settings.dronesCount; ++i) flota.push_back(new Drona(base));
     for(int i=0; i<settings.robotsCount; ++i) flota.push_back(new Robot(base));
     for(int i=0; i<settings.scootersCount; ++i) flota.push_back(new Scuter(base));
 
     vector<Pachet> pacheteActive;
+    pacheteActive.reserve(settings.totalPackages);
 
     // Variabile pentru Scoring
     long long profitTotal = 0;
@@ -61,8 +67,6 @@ vector<Agent*> flota;
     long long totalPenalties = 0;
     int pacheteLivrate = 0;
 
-    cout << "\n=== INCEPE SIMULAREA HIVEMIND ===\n";
-
     // 3. Bucla Principala (Simulation Loop)
     for (int tick = 0; tick < settings.maxTicks; tick++) {
 
@@ -70,8 +74,8 @@ vector<Agent*> flota;
         // -> Sunt generate dinamic la intervale regulate
         if (tick % settings.spawnFrequency == 0 && pacheteActive.size() < settings.totalPackages) {
             // Alegem random un client destinatie
-            int randIdx = rand() % destinatiiFinale.size();
-            Pachet pNou(pacheteActive.size(), destinatiiFinale[randIdx], tick);
+            int randIdx = rand() % destinatii.size();
+            Pachet pNou(pacheteActive.size(), destinatii[randIdx], tick);
             pacheteActive.push_back(pNou);
             cout << "[TICK " << tick << "] Pachet NOU #" << pNou.id << " catre ["
                  << pNou.destinatie.x << "," << pNou.destinatie.y << "] Valoare: " << pNou.valoare << endl;
@@ -94,12 +98,18 @@ vector<Agent*> flota;
                                 agent->setPath(drum, &p);
                                 p.status = PachetStatus::ALOCAT;
                                 cout << " -> Alocat pachetul " << p.id << " agentului " << agent->nume << endl;
-                                break; // Trecem la urmatorul pachet
+                                break;
                             }
                         } else {
                             // Daca e idle dar nu e la baza, il trimitem la baza
-                             vector<Point> drumBaza = findPath(agent->pozitie, base, myMap, agent->poateZbura());
-                             if(!drumBaza.empty()) agent->setPath(drumBaza);
+                            vector<Point> drumIncarcare = findPath(agent->pozitie, base, myMap, agent->poateZbura());
+                            for (auto  statie: statii) {
+                                vector <Point> drum=findPath(agent->pozitie, statie, myMap, agent->poateZbura());
+                                if (drumIncarcare.size() > drum.size()) {
+                                    drumIncarcare=drum;
+                                }
+                            }
+                            if(!drumIncarcare.empty()) agent->setPath(drumIncarcare);
                         }
                     }
                 }
@@ -116,10 +126,6 @@ vector<Agent*> flota;
             bool ajunsLaDestinatie = agent->update();
 
             // Verificam Penalizari - Baterie Moarta
-            if (agent->stare == AgentState::DEAD) {
-                 // Penalizare aplicata o singura data sau pe tick? De obicei o data cand moare.
-                 // Aici simplificam si adaugam la final sau verificam tranzitia de stare.
-            }
 
             // D. Verificare Livrare
             if (ajunsLaDestinatie && agent->hasPackage()) {
@@ -142,6 +148,10 @@ vector<Agent*> flota;
                 vector<Point> drumRetur = findPath(agent->pozitie, base, myMap, agent->poateZbura());
                 agent->setPath(drumRetur);
             }
+        }
+        if (tick % 10 == 0) {
+            cout << "[TICK " << tick << "] Rewards: " << totalRewards
+                 << " Cost: " << totalOpCost << " Penalties: " << totalPenalties << endl;
         }
     }
 

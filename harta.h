@@ -282,11 +282,11 @@ public:
         return base;
     }
 
-    FileMapLoader(const string& caleFisier) : numeFisier("harta_test") {}
+    FileMapLoader(const string& caleFisier) : numeFisier(caleFisier) {}
     MapGrid generateMap(int rows, int cols, int stations, int clients){
         MapGrid harta(rows, vector<char>(cols, '.'));
 
-        ifstream file("harta_test");
+        ifstream file(numeFisier);
         if (!file.is_open()) {
             cerr<<"[EROARE] Nu s-a putut deschide fisierul:"<<numeFisier<<endl;
             cerr<<"Se returneaza o harta goala (default)."<<endl;
