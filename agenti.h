@@ -2,8 +2,13 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <deque>
+#include "settings.h"
 
 using namespace std;
+
+// Forward declaration
+class Pachet;
 
 enum class AgentState {
     IDLE,
@@ -12,12 +17,11 @@ enum class AgentState {
     DEAD
 };
 
-struct Point {
-    int x, y;
-};
-
 class Agent {
-protected:
+public:
+    deque<Point> currentPath;
+    Pachet* pachetCurent = nullptr;
+
     string nume;
     char simbol;
     int viteza;
@@ -29,8 +33,6 @@ protected:
     Point pozitie;
     AgentState stare;
 
-
-public:
     Agent(string n, char s, int v, int bMax, int cons, int cost, int cap, Point startPos)
         : nume(n), simbol(s), viteza(v), baterieMax(bMax), baterie(bMax),
           consumBaterie(cons), costPerTick(cost), capacitate(cap),
@@ -40,40 +42,70 @@ public:
 
     virtual bool poateZbura() const = 0;
 
-    virtual void update() {
-        if (stare == AgentState::DEAD) return;
+    void setPath(const vector<Point>& path, Pachet* p = nullptr) {
+        currentPath.clear();
+        for(const auto& pt : path) {
+            currentPath.push_back(pt);
+        }
+
+        // Scoatem prima pozitie daca e cea curenta
+        if(!currentPath.empty() && currentPath.front().x == pozitie.x && currentPath.front().y == pozitie.y) {
+            currentPath.pop_front();
+        }
+
+        if (!currentPath.empty()) {
+            stare = AgentState::MOVING;
+            pachetCurent = p;
+        }
+    }
+
+    bool hasPackage() const {
+        return pachetCurent != nullptr;
+    }
+
+    // Returneaza true daca a terminat drumul in acest tick
+    bool update() {
+        if (stare == AgentState::DEAD) return false;
+
         if (baterie <= 0) {
             stare = AgentState::DEAD;
             cout << nume << " a ramas fara baterie si a murit!\n";
-            return;
+            return false;
         }
-        switch (stare) {
-            case AgentState::IDLE:
-                // Așteaptă comenzi. Dacă e în bază, se încarcă.
-                break;
 
-            case AgentState::MOVING:
-                baterie -= consumBaterie;
-                break;
-
-            case AgentState::CHARGING:
-                baterie +=(baterieMax*0.25);
-                if (baterie >= baterieMax) {
-                    baterie = baterieMax;
-                    stare = AgentState::IDLE;
+        if (stare == AgentState::MOVING) {
+            // Miscare in functie de viteza (nr de celule per tick)
+            for(int i = 0; i < viteza && !currentPath.empty(); ++i) {
+                if (baterie < consumBaterie) {
+                    stare = AgentState::DEAD;
+                    break;
                 }
-                break;
+                pozitie = currentPath.front();
+                currentPath.pop_front();
+                baterie -= consumBaterie;
+            }
 
-             case AgentState::DEAD:
-                break;
+            if (currentPath.empty() && stare != AgentState::DEAD) {
+                stare = AgentState::IDLE;
+                return true; // A ajuns la destinatie
+            }
         }
-        // Scădem costul operațional (doar dacă e viu)
-        // Profitul scade cu costPerTick
+        else if (stare == AgentState::CHARGING) {
+            baterie += (baterieMax * 0.25);
+            if (baterie >= baterieMax) {
+                baterie = baterieMax;
+                stare = AgentState::IDLE;
+            }
+        }
+
+        return false;
     }
 
     char getSimbol() const { return simbol; }
     Point getPozitie() const { return pozitie; }
     bool isDead() const { return stare == AgentState::DEAD; }
+    int getCost() const { return costPerTick; }
+
 };
 
 class Drona : public Agent {

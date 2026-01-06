@@ -4,6 +4,8 @@
 #include <random>
 #include <queue>
 #include "settings.h"
+#include <cmath>
+#include <algorithm>
 
 
 using MapGrid=vector<vector<char>>;
@@ -21,11 +23,12 @@ public:
 class ProceduralMapGenerator : public IMapGenerator {
 private:
     mt19937 rng;
+
+public:
     vector<Point> destinations;
     vector<Point> station_list;
     Point base;
 
-public:
     ProceduralMapGenerator() {
         random_device rd;
         rng.seed(rd());
@@ -148,6 +151,115 @@ void printMap(const MapGrid& map) {
         }
         cout<<endl;
     }
+}
+
+struct Node {
+    Point pos;
+    int g, h; // g = cost de la start, h = euristica
+
+    int f() const { return g + h; }
+
+    // Operator pentru priority_queue (inversat pentru a avea cel mai mic f() sus)
+    bool operator>(const Node& other) const {
+        return f() > other.f();
+    }
+};
+
+inline int manhattan(const Point& a, const Point& b) {
+    return abs(a.x - b.x) + abs(a.y - b.y);
+}
+
+// Am redenumit parametrul 'map' in 'harta' pentru a nu intra in conflict cu std::map
+vector<Point> findPath(Point start, Point goal, const MapGrid& harta, bool canFly) {
+    int rows = harta.size();
+    int cols = harta[0].size();
+
+    // Verificare limite (fail-safe)
+    if (start.x < 0 || start.x >= rows || start.y < 0 || start.y >= cols ||
+        goal.x < 0 || goal.x >= rows || goal.y < 0 || goal.y >= cols) {
+        return {};
+    }
+
+    // Matricea de vizitat
+    vector<vector<bool>> visited(rows, vector<bool>(cols, false));
+
+    // Coada de prioritati (Min-Heap)
+    priority_queue<Node, vector<Node>, greater<Node>> openSet;
+
+    // Adaugam nodul de start
+    Node startNode;
+    startNode.pos = start;
+    startNode.g = 0;
+    startNode.h = manhattan(start, goal);
+    openSet.push(startNode);
+
+    // Mapare pentru reconstructia drumului: key={x,y}, value=Parinte
+    map<pair<int,int>, Point> cameFrom;
+
+    // Costurile gScore
+    map<pair<int,int>, int> gScore;
+    gScore[{start.x, start.y}] = 0;
+
+    int dx[] = {-1, 1, 0, 0};
+    int dy[] = {0, 0, -1, 1};
+
+    while (!openSet.empty()) {
+        Node current = openSet.top();
+        openSet.pop();
+
+        // Daca am ajuns la destinatie
+        if (current.pos.x == goal.x && current.pos.y == goal.y) {
+            vector<Point> path;
+            Point p = goal;
+
+            // Reconstruim drumul mergand inapoi din parinte in parinte
+            while (true) {
+                path.push_back(p);
+                // Daca am ajuns la start (care nu are parinte in cameFrom), ne oprim
+                if (p.x == start.x && p.y == start.y) break;
+
+                auto it = cameFrom.find({p.x, p.y});
+                if (it == cameFrom.end()) break; // Siguranta
+                p = it->second;
+            }
+
+            reverse(path.begin(), path.end());
+            return path;
+        }
+
+        // Daca am vizitat deja acest nod, trecem mai departe
+        if (visited[current.pos.x][current.pos.y]) continue;
+        visited[current.pos.x][current.pos.y] = true;
+
+        // Verificam vecinii
+        for (int i = 0; i < 4; i++) {
+            int nx = current.pos.x + dx[i];
+            int ny = current.pos.y + dy[i];
+
+            // Verificari limite si coliziuni
+            if (nx < 0 || nx >= rows || ny < 0 || ny >= cols) continue;
+            if (!canFly && harta[nx][ny] == '#') continue; // Doar daca nu zboara se loveste de ziduri
+            if (visited[nx][ny]) continue;
+
+            int tentativeG = current.g + 1;
+            pair<int, int> neighborKey = {nx, ny};
+
+            // Daca am gasit un drum mai bun sau nodul nu a fost procesat
+            if (gScore.find(neighborKey) == gScore.end() || tentativeG < gScore[neighborKey]) {
+                gScore[neighborKey] = tentativeG;
+                cameFrom[neighborKey] = current.pos;
+
+                Node neighbor;
+                neighbor.pos = {nx, ny};
+                neighbor.g = tentativeG;
+                neighbor.h = manhattan(neighbor.pos, goal);
+
+                openSet.push(neighbor);
+            }
+        }
+    }
+
+    return {}; // Nu s-a gasit drum
 }
 
 class FileMapLoader :public IMapGenerator{
