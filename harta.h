@@ -64,7 +64,7 @@ public:
             base.x=hubR;
             base.y=hubC;
 
-            int numWalls = (rows * cols) * 0.4; // 40% ziduri
+            int numWalls = (rows * cols) * 0.4;
             placeItem(map, numWalls, '#', distRow, distCol);
 
             placeItem(map, stations, 'S', distRow, distCol);
