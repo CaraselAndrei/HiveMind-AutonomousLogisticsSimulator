@@ -17,6 +17,8 @@ enum class AgentState {
     DEAD
 };
 
+int globalId=0;
+
 class Agent {
 public:
     deque<Point> currentPath;
@@ -30,11 +32,13 @@ public:
     int consumBaterie;
     int costPerTick;
     int capacitate;
+    const int id=0;
     Point pozitie;
     AgentState stare;
 
     Agent(string n, char s, int v, int bMax, int cons, int cost, int cap, Point startPos)
-        : nume(n), simbol(s), viteza(v), baterieMax(bMax), baterie(bMax),
+        : id(globalId++), // 3. Atribuim ID-ul curent si incrementam contorul
+          nume(n), simbol(s), viteza(v), baterieMax(bMax), baterie(bMax),
           consumBaterie(cons), costPerTick(cost), capacitate(cap),
           pozitie(startPos), stare(AgentState::IDLE) {}
 
