@@ -94,7 +94,7 @@ public:
 
         if (baterie <= 0) {
             stare = AgentState::DEAD;
-            cout << "[CRITIC] " << nume << " (" << id << ") a ramas fara baterie si a murit!\n";
+            //cout << "[CRITIC] " << nume << " (" << id << ") a ramas fara baterie si a murit!\n";
             return false;
         }
 

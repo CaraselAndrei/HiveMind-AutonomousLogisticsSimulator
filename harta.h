@@ -21,6 +21,64 @@ public:
     virtual ~IMapGenerator() = default;
 };
 
+class FileMapLoader :public IMapGenerator{
+private:
+    string numeFisier;
+    vector<Point> destinations;
+    vector<Point> station;
+    Point base;
+public:
+
+    vector<Point> getDestinations() override {
+        return destinations;
+    }
+
+    vector<Point> getStations() override {
+        return station;
+    }
+
+    Point getBase() override {
+        return base;
+    }
+
+    FileMapLoader(const string& caleFisier) : numeFisier(caleFisier) {}
+    MapGrid generateMap(int rows, int cols, int stations, int clients){
+        MapGrid harta(rows, vector<char>(cols, '.'));
+
+        ifstream file(numeFisier);
+        if (!file.is_open()) {
+            cerr<<"[EROARE] Nu s-a putut deschide fisierul:"<<numeFisier<<endl;
+            cerr<<"Se returneaza o harta goala (default)."<<endl;
+            return harta;
+        }
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                file>>harta[i][j];
+                if (harta[i][j] == 'D') {
+                    Point p;
+                    p.x=i;
+                    p.y=j;
+                    destinations.push_back(p);
+                }
+                else if (harta[i][j] == 'S') {
+                    Point p;
+                    p.x=i;
+                    p.y=j;
+                    station.push_back(p);
+                }
+                else if (harta[i][j] == 'B') {
+                    base.x=i;
+                    base.y=j;
+                }
+            }
+        }
+
+        file.close();
+        cout<<"Harta incarcata cu succes din "<<numeFisier<<endl;
+        return harta;
+    }
+};
+
 class ProceduralMapGenerator : public IMapGenerator {
 private:
     mt19937 rng;
@@ -247,61 +305,3 @@ vector<Point> findPath(Point start, Point goal, const MapGrid& harta, bool canFl
 
     return {};
 }
-
-class FileMapLoader :public IMapGenerator{
-private:
-    string numeFisier;
-    vector<Point> destinations;
-    vector<Point> station;
-    Point base;
-public:
-
-    vector<Point> getDestinations() override {
-        return destinations;
-    }
-
-    vector<Point> getStations() override {
-        return station;
-    }
-
-    Point getBase() override {
-        return base;
-    }
-
-    FileMapLoader(const string& caleFisier) : numeFisier(caleFisier) {}
-    MapGrid generateMap(int rows, int cols, int stations, int clients){
-        MapGrid harta(rows, vector<char>(cols, '.'));
-
-        ifstream file(numeFisier);
-        if (!file.is_open()) {
-            cerr<<"[EROARE] Nu s-a putut deschide fisierul:"<<numeFisier<<endl;
-            cerr<<"Se returneaza o harta goala (default)."<<endl;
-            return harta;
-        }
-        for (int i = 0; i < rows; ++i) {
-            for (int j = 0; j < cols; ++j) {
-                file>>harta[i][j];
-                if (harta[i][j] == 'D') {
-                    Point p;
-                    p.x=i;
-                    p.y=j;
-                    destinations.push_back(p);
-                }
-                else if (harta[i][j] == 'S') {
-                    Point p;
-                    p.x=i;
-                    p.y=j;
-                    station.push_back(p);
-                }
-                else if (harta[i][j] == 'B') {
-                    base.x=i;
-                    base.y=j;
-                }
-            }
-        }
-
-        file.close();
-        cout<<"Harta incarcata cu succes din "<<numeFisier<<endl;
-        return harta;
-    }
-};
