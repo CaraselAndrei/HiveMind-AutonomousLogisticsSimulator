@@ -8,4 +8,5 @@ add_executable(HiveMind
         harta.h
         agenti.h
         settings.h
-        pachete.h)
+        pachete.h
+        simulation_engine.h)

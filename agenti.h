@@ -3,12 +3,11 @@
 #include <string>
 #include <vector>
 #include <deque>
+#include <cmath>
 #include "settings.h"
+#include "pachete.h" // Necesar pentru definitia Pachet
 
 using namespace std;
-
-// Forward declaration
-class Pachet;
 
 enum class AgentState {
     IDLE,
@@ -17,27 +16,33 @@ enum class AgentState {
     DEAD
 };
 
-int globalId=0;
+int globalId = 0;
 
 class Agent {
 public:
     deque<Point> currentPath;
-    Pachet* pachetCurent = nullptr;
+
+    // [NOU] Lista de pachete (inventar)
+    vector<Pachet*> incarcatura;
+
+    // [NOU] Variabile pentru logica de asteptare
+    int ticksWaiting = 0;   // Cat timp a stat in baza asteptand sa se umple
+    int maxWaitTicks = 15;  // Cat timp are voie sa astepte maxim inainte sa plece
 
     string nume;
     char simbol;
     int viteza;
-    int baterie;
+    double baterie;       // Schimbat in double pentru precizie la incarcare
     int baterieMax;
     int consumBaterie;
     int costPerTick;
     int capacitate;
-    const int id=0;
+    const int id;
     Point pozitie;
     AgentState stare;
 
     Agent(string n, char s, int v, int bMax, int cons, int cost, int cap, Point startPos)
-        : id(globalId++), // 3. Atribuim ID-ul curent si incrementam contorul
+        : id(globalId++),
           nume(n), simbol(s), viteza(v), baterieMax(bMax), baterie(bMax),
           consumBaterie(cons), costPerTick(cost), capacitate(cap),
           pozitie(startPos), stare(AgentState::IDLE) {}
@@ -46,34 +51,61 @@ public:
 
     virtual bool poateZbura() const = 0;
 
-    void setPath(const vector<Point>& path, Pachet* p = nullptr) {
+    // [MODIFICAT] Seteaza calea si reseteaza asteptarea
+    void setPath(const vector<Point>& path) {
         currentPath.clear();
         for(const auto& pt : path) {
             currentPath.push_back(pt);
         }
 
-        // Scoatem prima pozitie daca e cea curenta
+        // Scoatem prima pozitie daca e cea curenta (pentru a nu sta pe loc un tick)
         if(!currentPath.empty() && currentPath.front().x == pozitie.x && currentPath.front().y == pozitie.y) {
             currentPath.pop_front();
         }
 
         if (!currentPath.empty()) {
             stare = AgentState::MOVING;
-            pachetCurent = p;
+            ticksWaiting = 0; // Resetam asteptarea cand pleaca in cursa
         }
     }
 
-    bool hasPackage() const {
-        return pachetCurent != nullptr;
+    // [NOU] Adauga un pachet in inventar
+    bool adaugaPachet(Pachet* p) {
+        if (incarcatura.size() < (size_t)capacitate) {
+            incarcatura.push_back(p);
+            return true;
+        }
+        return false;
     }
 
-    // Returneaza true daca a terminat drumul in acest tick
+    // [NOU] Verifica daca mai are loc
+    bool areLoc() const {
+        return incarcatura.size() < (size_t)capacitate;
+    }
+
+    // [NOU] Verifica daca trebuie sa plece urgent (se apropie deadline-ul unui pachet din inventar)
+    bool trebuieSaPleceUrgent(int currentTick) {
+        if (incarcatura.empty()) return false;
+
+        for (auto* p : incarcatura) {
+            int timpRamas = (p->spawnTime + p->deadline) - currentTick;
+            // Estimam distanta Manhattan pana la destinatie
+            int dist = abs(pozitie.x - p->destinatie.x) + abs(pozitie.y - p->destinatie.y);
+
+            // Daca timpul ramas e periculos de mic (distanta + marja de siguranta 5 tick-uri)
+            if (timpRamas <= dist + 5) return true;
+        }
+        return false;
+    }
+
+    // [MODIFICAT] Functia de update (consuma baterie, misca agentul)
+    // Returneaza true daca a terminat drumul curent (a ajuns la o destinatie)
     bool update() {
         if (stare == AgentState::DEAD) return false;
 
         if (baterie <= 0) {
             stare = AgentState::DEAD;
-            cout << nume << " a ramas fara baterie si a murit!\n";
+            cout << "[CRITIC] " << nume << " (" << id << ") a ramas fara baterie si a murit!\n";
             return false;
         }
 
@@ -90,12 +122,12 @@ public:
             }
 
             if (currentPath.empty() && stare != AgentState::DEAD) {
-                stare = AgentState::IDLE;
-                return true; // A ajuns la destinatie
+                // A ajuns la destinatia curenta (poate fi un client sau baza)
+                return true;
             }
         }
         else if (stare == AgentState::CHARGING) {
-            baterie += (baterieMax * 0.25);
+            baterie += (baterieMax * 0.25); // Incarca 25% pe tick
             if (baterie >= baterieMax) {
                 baterie = baterieMax;
                 stare = AgentState::IDLE;
@@ -110,12 +142,13 @@ public:
     bool isDead() const { return stare == AgentState::DEAD; }
     int getCost() const { return costPerTick; }
 
+
 };
 
 class Drona : public Agent {
 public:
     Drona(Point startPos)
-        : Agent("Drona", '^', 3, 100, 10, 15, 1, startPos) {}
+        : Agent("Drona", '^', 3, 100, 10, 15, 1, startPos) {} // Capacitate mica (1), viteza mare
 
     bool poateZbura() const override {
         return true;
@@ -125,7 +158,7 @@ public:
 class Robot : public Agent {
 public:
     Robot(Point startPos)
-        : Agent("Robot", 'R', 1, 300, 2, 1, 4, startPos) {}
+        : Agent("Robot", 'R', 1, 300, 2, 1, 4, startPos) {} // Capacitate mare (4), viteza mica
 
     bool poateZbura() const override {
         return false;
@@ -135,9 +168,15 @@ public:
 class Scuter : public Agent {
 public:
     Scuter(Point startPos)
-        : Agent("Scuter", 'S', 2, 200, 5, 4, 2, startPos) {}
+        : Agent("Scuter", 'S', 2, 200, 5, 4, 2, startPos) {} // Mediu (2)
 
     bool poateZbura() const override {
         return false;
     }
 };
+
+int estimateDistance(Point a, Point b, bool canFly) {
+    int dist = abs(a.x - b.x) + abs(a.y - b.y);
+    if (canFly) return dist;
+    return (int)(dist * 2.5);
+}

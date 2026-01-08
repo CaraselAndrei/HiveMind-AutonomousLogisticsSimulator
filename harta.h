@@ -6,6 +6,7 @@
 #include "settings.h"
 #include <cmath>
 #include <algorithm>
+#include <map>
 
 
 using MapGrid=vector<vector<char>>;
@@ -165,11 +166,10 @@ struct Node {
     }
 };
 
-inline int manhattan(const Point& a, const Point& b) {
+inline int dist(const Point& a, const Point& b) {
     return abs(a.x - b.x) + abs(a.y - b.y);
 }
 
-// Am redenumit parametrul 'map' in 'harta' pentru a nu intra in conflict cu std::map
 vector<Point> findPath(Point start, Point goal, const MapGrid& harta, bool canFly) {
     int rows = harta.size();
     int cols = harta[0].size();
@@ -190,7 +190,7 @@ vector<Point> findPath(Point start, Point goal, const MapGrid& harta, bool canFl
     Node startNode;
     startNode.pos = start;
     startNode.g = 0;
-    startNode.h = manhattan(start, goal);
+    startNode.h = dist(start, goal);
     openSet.push(startNode);
 
     // Mapare pentru reconstructia drumului: key={x,y}, value=Parinte
@@ -252,7 +252,7 @@ vector<Point> findPath(Point start, Point goal, const MapGrid& harta, bool canFl
                 Node neighbor;
                 neighbor.pos = {nx, ny};
                 neighbor.g = tentativeG;
-                neighbor.h = manhattan(neighbor.pos, goal);
+                neighbor.h = dist(neighbor.pos, goal);
 
                 openSet.push(neighbor);
             }
