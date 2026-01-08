@@ -1,8 +1,4 @@
 #pragma once
-#include <vector>
-#include <iostream>
-#include <algorithm>
-#include <cmath>
 #include "settings.h"
 #include "harta.h"
 #include "agenti.h"
@@ -18,151 +14,137 @@ private:
     vector<Point> destinations;
     vector<Point> stations;
 
-    // Entitati
     vector<Agent*> flota;
-    vector<Pachet*> pacheteActive;      // Toate pachetele generate
-    vector<Pachet*> pacheteInAsteptare; // Pachete care asteapta in baza sa fie alocate
+    vector<Pachet*> pacheteActive;
+    vector<Pachet*> pacheteInAsteptare;
+    vector<Pachet*> pacheteExpirate;
 
-    // Statistici
     long long totalRewards = 0;
     long long totalOpCost = 0;
     long long totalPenalties = 0;
     int pacheteLivrate = 0;
     int currentTick = 0;
 
-    // Generare pachete
+    int estimateDistance(Point a, Point b, bool canFly) {
+        int dist = abs(a.x - b.x) + abs(a.y - b.y);
+        if (canFly) return dist;
+        return (int)(dist * 2);//distanta aproximativa pentru vehicule terestre (*2 obtinut prin trial and error, cele mai mari profituri s-au obtinut cu el)
+    }
+
     void spawnPackages() {
         if (currentTick % settings.spawnFrequency == 0 && pacheteActive.size() < (size_t)settings.totalPackages) {
             int randIdx = rand() % destinations.size();
             Pachet* pNou = new Pachet(pacheteActive.size(), destinations[randIdx], currentTick);
             pacheteActive.push_back(pNou);
             pacheteInAsteptare.push_back(pNou);
-
-            // Debug (optional)
-            // cout << "[SPAWN] Pachet " << pNou->id << " la Tick " << currentTick << "\n";
         }
     }
 
-    // [NOU] Verifica compatibilitatea fara a asigna direct
     bool canAgentTakePackage(Agent* agent, Pachet* p) {
-        // 1. Calculam distanta estimata (drona merge drept, robotul ocoleste)
         int distEstimata = estimateDistance(agent->pozitie, p->destinatie, agent->poateZbura());
-
-        // 2. Calculam timpul necesar (Ticks = Distanta / Viteza)
-        // Adaugam +2 ticks marja de eroare pentru pathfinding
         int timpNecesar = (distEstimata / agent->viteza) + 2;
-
-        // 3. Verificam Deadline-ul (Cel mai important!)
         int timpRamasPachet = (p->spawnTime + p->deadline) - currentTick;
 
-        // Daca nu poate ajunge fizic in timp util, refuza pachetul (evitam penalizarea)
         if (timpNecesar >= timpRamasPachet) {
-            return false;
+            return false;//prioritizam pachetele care pot fi livrate la timp
         }
 
-        // 4. Calculam Profitabilitatea (Cost vs Reward)
         int costOperare = timpNecesar * agent->costPerTick;
         int profitNet = p->valoare - costOperare;
 
-        // Daca profitul e prea mic (sau negativ), nu merita efortul
-        if (profitNet < 50) return false;
+        if (profitNet < 50) return false; // prioritizam profitul mai mare ca 50
+        return true;
 
-        // 5. Specializare pe tipuri (Heuristica de eficienta)
-
+        //Metoda neimplementata
+        //E greu de gasit valori astfel incat secventa urmatoare sa dea randament bun pe orice harta
+        /*
         if (agent->nume == "Drona") {
-            // Drona e scumpa (15 cost). O folosim DOAR daca:
-            // - E foarte urgent (timp putin) SAU
-            // - E foarte departe (unde robotul ar face prea mult)
-            if (timpRamasPachet < 7 || distEstimata > 7) return true;
-            return false; // Altfel, lasa-l la robot/scuter ca e mai ieftin
-        }
-
-        else if (agent->nume == "Scuter") {
-            if (timpRamasPachet >10  && distEstimata > 15) return true;
+            if (timpRamasPachet < 7 || distEstimata > 6) return true;
             return false;
         }
-
-        else { // Scuter
-            // Scuterul e balansat. Ia orice "pica" intre cele doua categorii.
-            // Sau ia pachete indepartate dar care nu sunt critice.
-            return true;
+        else if (agent->nume == "Scuter") {
+            if (timpRamasPachet > 10 && distEstimata > 15) return true;
+            return false;
         }
+        else {
+            return true;//lasam la roboti distantele medii
+        }*/
     }
 
-    // [NOU] Calculeaza ruta spre urmatorul pachet din inventar
     void startDeliveryRoute(Agent* agent) {
         if (agent->incarcatura.empty()) return;
 
-        // Strategie simpla: Mergem la primul pachet din lista
-        // (Aici s-ar putea implementa Nearest Neighbor pentru optimizare)
         Pachet* target = agent->incarcatura.front();
-
         vector<Point> drum = findPath(agent->pozitie, target->destinatie, map, agent->poateZbura());
         agent->setPath(drum);
-        // Nota: Nu setam pachetCurent individual, agentul stie ca are o lista "incarcatura"
     }
 
-    // [MODIFICAT] Logica de alocare cu asteptare (Batching)
     void dispatchAgents() {
-        // 1. Curatare pachete expirate din coada de asteptare
         for (auto it = pacheteInAsteptare.begin(); it != pacheteInAsteptare.end(); ) {
             if ((*it)->isExpired(currentTick)) {
                 (*it)->status = PachetStatus::EXPIRAT;
-                totalPenalties += 50;
+                pacheteExpirate.push_back(*it);
                 it = pacheteInAsteptare.erase(it);
+                totalPenalties+=50;
             } else {
                 ++it;
             }
         }
 
         for (auto* agent : flota) {
-            // Verificam daca agentul este in baza
             bool inBase = (agent->pozitie.x == baseLocation.x && agent->pozitie.y == baseLocation.y);
 
-            // Agentul primeste comenzi doar daca e in baza si nu incarca/mort
             if (inBase && agent->stare != AgentState::DEAD && agent->stare != AgentState::CHARGING) {
-
-                // A. Incearca sa umple capacitatea cu pachete din asteptare
-                if (agent->areLoc()) {
+                if (agent->areLoc() && !pacheteInAsteptare.empty()) {
                     for (auto it = pacheteInAsteptare.begin(); it != pacheteInAsteptare.end(); ) {
                         Pachet* p = *it;
                         if (canAgentTakePackage(agent, p)) {
-                            // Verificam daca are destula baterie (estimativ)
-                            // Consideram ca are nevoie de minim 20% baterie sa plece in cursa
                             if (agent->baterie > agent->baterieMax * 0.2) {
                                 agent->adaugaPachet(p);
                                 p->status = PachetStatus::ALOCAT;
-                                it = pacheteInAsteptare.erase(it); // Scoatem din lista de asteptare globala
-
-                                cout << " -> [LOAD] " << agent->nume << " (" << agent->id << ") a incarcat Pachet " << p->id
-                                     << ". Load: " << agent->incarcatura.size() << "/" << agent->capacitate << "\n";
+                                it = pacheteInAsteptare.erase(it);
                             } else {
                                 ++it;
                             }
 
-                            if (!agent->areLoc()) break; // S-a umplut, nu mai cautam
+                            if (!agent->areLoc()) break;
                         } else {
                             ++it;
                         }
                     }
                 }
 
-                // B. Decizia de plecare (GO vs WAIT)
+                if (agent->areLoc() && pacheteInAsteptare.empty() && !pacheteExpirate.empty()) {
+                    for (auto it = pacheteExpirate.begin(); it != pacheteExpirate.end(); ) {
+                        Pachet* p = *it;
+                        int dist = estimateDistance(agent->pozitie, p->destinatie, agent->poateZbura());
+                        int costDrum = dist * agent->getCost();
+
+                        if (agent->baterie > agent->baterieMax * 0.2 && p->valoare > costDrum) {
+                            agent->adaugaPachet(p);
+                            p->status = PachetStatus::ALOCAT;
+                            it = pacheteExpirate.erase(it);
+                        } else {
+                            ++it;
+                        }
+
+                        if (!agent->areLoc()) break;
+                    }
+                }
+
                 if (!agent->incarcatura.empty()) {
                     bool urgent = agent->trebuieSaPleceUrgent(currentTick);
                     bool plin = !agent->areLoc();
                     bool timeout = agent->ticksWaiting >= agent->maxWaitTicks;
+                    bool backlogMode = pacheteInAsteptare.empty() && !pacheteExpirate.empty();
 
-                    if (urgent || plin || timeout) {
-                        cout << " -> [DEPART] " << agent->nume << " (" << agent->id << ") pleaca cu " << agent->incarcatura.size() << " pachete.\n";
+                    if (urgent || plin || timeout || backlogMode) {
                         startDeliveryRoute(agent);
                     } else {
-                        // Mai asteapta un tick pentru a incerca sa ia mai multe pachete
                         agent->ticksWaiting++;
                         agent->stare = AgentState::IDLE;
                     }
                 }
-                // C. Daca nu are nicio treaba si bateria e scazuta, il punem la incarcat
                 else if (agent->baterie < agent->baterieMax) {
                     agent->stare = AgentState::CHARGING;
                 }
@@ -170,10 +152,8 @@ private:
         }
     }
 
-    // [MODIFICAT] Logica de miscare si livrare secventiala
     void moveAgents() {
         for (auto* agent : flota) {
-            // Cost operational
             if (agent->stare == AgentState::MOVING) {
                 totalOpCost += agent->getCost();
             }
@@ -181,13 +161,11 @@ private:
             bool arrived = agent->update();
 
             if (arrived) {
-                // 1. Verificam daca am ajuns la destinatia unui pachet din inventar
                 bool deliveredAny = false;
 
                 for (auto it = agent->incarcatura.begin(); it != agent->incarcatura.end(); ) {
                     Pachet* p = *it;
                     if (agent->pozitie.x == p->destinatie.x && agent->pozitie.y == p->destinatie.y) {
-                        // LIVRAT!
                         p->status = PachetStatus::LIVRAT;
 
                         if (p->isExpired(currentTick)) totalPenalties += 50;
@@ -195,27 +173,20 @@ private:
 
                         pacheteLivrate++;
 
-                        cout << " -> [LIVRARE] " << agent->nume << " (" << agent->id << ") a livrat Pachet " << p->id << "\n";
-
-                        it = agent->incarcatura.erase(it); // Scoatem din inventarul agentului
+                        it = agent->incarcatura.erase(it);
                         deliveredAny = true;
                     } else {
                         ++it;
                     }
                 }
 
-                // 2. Decidem urmatoarea miscare
                 if (!agent->incarcatura.empty()) {
-                    // Mai are pachete, calculeaza drumul spre urmatorul
                     startDeliveryRoute(agent);
                 } else {
-                    // Inventar gol
                     if (agent->pozitie.x == baseLocation.x && agent->pozitie.y == baseLocation.y) {
-                        // E deja in baza
                         agent->stare = AgentState::IDLE;
                         agent->ticksWaiting = 0;
                     } else {
-                        // Trebuie sa se intoarca
                         returnToBaseOrCharge(agent);
                     }
                 }
@@ -238,11 +209,11 @@ public:
         for (auto* p : pacheteActive) delete p;
         flota.clear();
         pacheteActive.clear();
-        std::cout << "[Engine] Memoria a fost curatata.\n";
+        pacheteInAsteptare.clear();
+        pacheteExpirate.clear();
     }
 
     void initialize(int mapOption) {
-        // 1. Generare Harta
         IMapGenerator* generator = nullptr;
         ProceduralMapGenerator procGen;
 
@@ -260,32 +231,26 @@ public:
             baseLocation = procGen.getBase();
         }
 
-        // 2. Initializare Flota
         for (int i = 0; i < settings.dronesCount; ++i) flota.push_back(new Drona(baseLocation));
         for (int i = 0; i < settings.robotsCount; ++i) flota.push_back(new Robot(baseLocation));
         for (int i = 0; i < settings.scootersCount; ++i) flota.push_back(new Scuter(baseLocation));
-
-        std::cout << "Engine Initializat. Baza la: " << baseLocation.x << " " << baseLocation.y << "\n";
     }
 
     void run() {
-        cout << "=== START SIMULARE ===\n";
-
         for (currentTick = 0; currentTick < settings.maxTicks; currentTick++) {
             spawnPackages();
-            dispatchAgents(); // Logica noua de dispatch
-            moveAgents();     // Logica noua de miscare
+            dispatchAgents();
+            moveAgents();
 
-            // Oprire conditionata
             if (pacheteLivrate >= settings.totalPackages) break;
 
-            if (currentTick % 50 == 0) {
-                std::cout << "[TICK " << currentTick << "] Livrate: " << pacheteLivrate
+           /* if (currentTick % 50 == 0) {
+                cout << "[TICK " << currentTick << "] Livrate: " << pacheteLivrate
                           << " | Coada: " << pacheteInAsteptare.size() << "\n";
-            }
+            }*/
         }
         saveReport();
-        printReport();
+        //printReport();
     }
 
     void printReport(){
@@ -312,10 +277,10 @@ public:
             raportFile << "Total Penalizari: " << totalPenalties << endl;
             raportFile << "----------------------------\n";
             raportFile << "PROFIT NET: " << profit << " credite\n";
+            raportFile << "OBSERVATIE: Nu se livreaza toate pachetele, doarece acele pachete nu genereaza profit.\n";
+            raportFile << "LINK GITHUB: https://github.com/CaraselAndrei/HiveMind-AutonomousLogisticsSimulator\n";
             raportFile.close();
-            cout << "[INFO] Raportul a fost salvat in 'raport_final.txt'.\n";
-        } else {
-            cerr << "[EROARE] Nu s-a putut crea fisierul de raport!\n";
+            raportFile.close();
         }
     }
 };
